@@ -1,0 +1,7 @@
+{
+  "name": "zoom",
+  "version": "1.0.0",
+  "author": "acrofuture",
+  "license": "MIT",
+  "description": "WebRTC & WebSockets"
+}
