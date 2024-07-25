@@ -1,16 +1,19 @@
 const socket = io();
 
-const video = document.querySelector("video");
+const myFace = document.getElementById("face");
+const btnMute = document.getElementById("mute");
+const btnCamera = document.getElementById("camera");
 
 let myStream;
 
-function getMedia() {
+async function getMedia() {
   try {
-    myStream = navigator.mediaDevices.getUserMedia({
+    myStream = await navigator.mediaDevices.getUserMedia({
       autio: true,
       video: true,
     });
-    video.srcObject = myStream;
+    console.log(myStream);
+    myFace.srcObject = myStream;
   } catch (error) {
     console.log(error);
   }

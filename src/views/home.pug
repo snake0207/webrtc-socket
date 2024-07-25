@@ -4,11 +4,14 @@ html(lang="en")
     meta(charset="UTF-8")
     meta(name="viewport", content="width=device-width, initial-scale=1.0")
     link(rel="stylesheet", href="https://unpkg.com/mvp.css")
-    title Zoom
+    title WebRTC
   body
   header 
-    h1 Works
+    h1 RTC
   main
-    vide#face(autoplay, playsinline, width="400", height="400")
+    div#myStream
+      video#face(autoplay, playsinline, width="400", height="400")
+      button#mute Mute
+      button#camera Turn on/off Camera
   script(src="/socket.io/socket.io.js")
   script(src="/public/js/app.js")
