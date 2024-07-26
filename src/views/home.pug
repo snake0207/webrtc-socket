@@ -7,12 +7,17 @@ html(lang="en")
     title WebRTC
   body
   header 
-    h1 RTC
+    h1 Welcome webRTC
   main
-    div#myStream
-      video#face(autoplay, playsinline, width="400", height="400")
-      button#mute Mute
-      button#camera Turn Camera off
-      select#cameras
+    div#welcome
+      form#room
+        input(type="text", required, placeholder="Enter room")
+        button Enter room
+    div#call
+      div#myStream
+        video#face(autoplay, playsinline, width="400", height="400")
+        button#mute Mute
+        button#camera Turn Camera off
+        select#cameras
   script(src="/socket.io/socket.io.js")
   script(src="/public/js/app.js")
