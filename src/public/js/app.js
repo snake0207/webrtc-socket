@@ -5,15 +5,19 @@ const btnMute = document.getElementById("mute");
 const btnCamera = document.getElementById("camera");
 const selectCamera = document.getElementById("cameras");
 
-let myStream;
+let mediaStream;
 let mute = false;
 let cameraOn = true;
+
+function getConnectionDevices(devices, type) {
+  return devices.filter((device) => device.kind === type);
+}
 
 async function getCameras() {
   try {
     const devices = await navigator.mediaDevices?.enumerateDevices();
-    const cameras = devices.filter((device) => device.kind === "videoinput");
-    const currentCamera = myStream.getVideoTracks()[0];
+    const cameras = getConnectionDevices(devices, "videoinput");
+    const currentCamera = mediaStream.getVideoTracks()[0];
     cameras.forEach((camera) => {
       const option = document.createElement("option");
       option.value = camera.deviceId;
@@ -39,12 +43,12 @@ async function getMedia(deviceId) {
   };
 
   try {
-    myStream = await navigator.mediaDevices.getUserMedia(
+    mediaStream = await navigator.mediaDevices.getUserMedia(
       deviceId ? deviceIdConstraints : initConstraints
     );
-    myFace.srcObject = myStream;
+    myFace.srcObject = mediaStream;
     if (!deviceId) {
-      await getCameras();
+      getCameras();
     }
   } catch (error) {
     console.log(error);
@@ -52,7 +56,7 @@ async function getMedia(deviceId) {
 }
 
 function handleMuteClick() {
-  myStream
+  mediaStream
     .getAudioTracks()
     .forEach((track) => (track.enabled = !track.enabled));
   if (mute) {
@@ -65,14 +69,14 @@ function handleMuteClick() {
 }
 
 function handleCameraClick() {
-  myStream
+  mediaStream
     .getVideoTracks()
     .forEach((track) => (track.enabled = !track.enabled));
   if (cameraOn) {
-    btnCamera.innerText = "Turn Camera On";
+    btnCamera.innerText = "Turn on Camera";
     cameraOn = false;
   } else {
-    btnCamera.innerText = "Turn Camera Off";
+    btnCamera.innerText = "Turn Off Camera";
     cameraOn = true;
   }
 }
@@ -98,6 +102,7 @@ async function startMedia() {
   divWelcome.hidden = true;
   divCall.hidden = false;
   await getMedia();
+  makeConnection();
 }
 
 function handleWelcomeSubmit(event) {
@@ -115,7 +120,27 @@ formWelcome.addEventListener("submit", handleWelcomeSubmit);
  * Process Socket
  */
 let gRoomName;
+/** @type {RTCPeerConnection} */
+let gPeerConnection;
 
-socket.on("welcome", () => {
-  console.log("Anonymous Joined...");
+socket.on("welcome", async () => {
+  console.log("welcome message received...");
+  const offer = await gPeerConnection.createOffer();
+  gPeerConnection.setLocalDescription(offer);
+  socket.emit("offer", offer, gRoomName);
 });
+
+socket.on("offer", (offer) => {
+  console.log("recv: ", offer);
+  gPeerConnection.setRemoteDescription(offer);
+});
+
+/**
+ * RTC Code
+ */
+function makeConnection() {
+  gPeerConnection = new RTCPeerConnection();
+  mediaStream
+    .getTracks()
+    .forEach((track) => gPeerConnection.addTrack(track, mediaStream));
+}

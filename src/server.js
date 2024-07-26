@@ -35,6 +35,9 @@ socketServer.on("connection", (socket) => {
     socket.to(roomName).emit("welcome", () => {});
     callbackFn();
   });
+  socket.on("offer", (offer, roomName) => {
+    socket.to(roomName).emit("offer", offer);
+  });
 });
 
 // socketServer.on("connection", (socket) => {
