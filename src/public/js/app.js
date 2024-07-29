@@ -1,84 +1,146 @@
 const socket = io();
 
-const welcome = document.getElementById("welcome");
-const formWelcome = welcome.querySelector("form");
+const myFace = document.getElementById("face");
+const btnMute = document.getElementById("mute");
+const btnCamera = document.getElementById("camera");
+const selectCamera = document.getElementById("cameras");
 
-const room = document.getElementById("room");
-const formNick = room.querySelector("#nick");
-const formMsg = room.querySelector("#msg");
-room.hidden = true;
+let mediaStream;
+let mute = false;
+let cameraOn = true;
 
-let gRoomName;
-
-function addMessage(msg) {
-  const ul = room.querySelector("ul");
-  const li = document.createElement("li");
-  li.innerText = msg;
-  ul.appendChild(li);
+function getConnectionDevices(devices, type) {
+  return devices.filter((device) => device.kind === type);
 }
 
-function showRoom() {
-  welcome.hidden = true;
-  room.hidden = false;
-  const h3 = room.querySelector("h3");
-  h3.innerText = `방제 : [${gRoomName}]`;
+async function getCameras() {
+  try {
+    const devices = await navigator.mediaDevices?.enumerateDevices();
+    const cameras = getConnectionDevices(devices, "videoinput");
+    const currentCamera = mediaStream.getVideoTracks()[0];
+    cameras.forEach((camera) => {
+      const option = document.createElement("option");
+      option.value = camera.deviceId;
+      option.innerText = camera.label;
+      if (currentCamera.label === camera.label) {
+        option.selected = true;
+      }
+      selectCamera.appendChild(option);
+    });
+  } catch (error) {
+    console.log(error);
+  }
 }
 
-formWelcome.addEventListener("submit", (event) => {
+async function getMedia(deviceId) {
+  const initConstraints = {
+    autio: true,
+    video: { facingMode: "user" },
+  };
+  const deviceIdConstraints = {
+    autio: true,
+    video: { deviceId: { exact: deviceId } },
+  };
+
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia(
+      deviceId ? deviceIdConstraints : initConstraints
+    );
+    myFace.srcObject = mediaStream;
+    if (!deviceId) {
+      getCameras();
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+function handleMuteClick() {
+  mediaStream
+    .getAudioTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
+  if (mute) {
+    btnMute.innerText = "Mute";
+    mute = false;
+  } else {
+    btnMute.innerText = "UnMute";
+    mute = true;
+  }
+}
+
+function handleCameraClick() {
+  mediaStream
+    .getVideoTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
+  if (cameraOn) {
+    btnCamera.innerText = "Turn on Camera";
+    cameraOn = false;
+  } else {
+    btnCamera.innerText = "Turn Off Camera";
+    cameraOn = true;
+  }
+}
+
+async function handleCameraChange(event) {
+  await getMedia(event.target.value);
+}
+
+btnMute.addEventListener("click", handleMuteClick);
+btnCamera.addEventListener("click", handleCameraClick);
+selectCamera.addEventListener("change", handleCameraChange);
+
+/**
+ * Enter room
+ */
+const divWelcome = document.getElementById("welcome");
+const formWelcome = divWelcome.querySelector("form");
+const divCall = document.getElementById("call");
+
+divCall.hidden = true;
+
+async function startMedia() {
+  divWelcome.hidden = true;
+  divCall.hidden = false;
+  await getMedia();
+  makeConnection();
+}
+
+function handleWelcomeSubmit(event) {
   event.preventDefault();
   const input = formWelcome.querySelector("input");
-  socket.emit("enter_room", input.value, showRoom);
+
+  socket.emit("join_room", input.value, startMedia);
   gRoomName = input.value;
   input.value = "";
+}
+
+formWelcome.addEventListener("submit", handleWelcomeSubmit);
+
+/**
+ * Process Socket
+ */
+let gRoomName;
+/** @type {RTCPeerConnection} */
+let gPeerConnection;
+
+socket.on("welcome", async () => {
+  console.log("welcome message received...");
+  const offer = await gPeerConnection.createOffer();
+  gPeerConnection.setLocalDescription(offer);
+  socket.emit("offer", offer, gRoomName);
 });
 
-formNick.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const input = formNick.querySelector("input");
-  socket.emit("nickname", gRoomName, input.value);
+socket.on("offer", (offer) => {
+  console.log("recv: ", offer);
+  gPeerConnection.setRemoteDescription(offer);
 });
 
-formMsg.addEventListener("submit", (event) => {
-  event.preventDefault();
-  // const input = room.querySelector("#msg input");
-  const input = formMsg.querySelector("input");
-  const value = input.value;
-  socket.emit("new_message", input.value, gRoomName, () => {
-    addMessage(`You: ${value}`);
-  });
-  input.value = "";
-});
-
-socket.on("welcome", (user, countMembers) => {
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room : ${gRoomName} (${countMembers})`;
-  addMessage(`${user} joined.`);
-});
-
-socket.on("nickname_update", (user) => {
-  addMessage(`${user} up-joined.`);
-});
-
-socket.on("bye", (user, countMembers) => {
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room : ${gRoomName} (${countMembers})`;
-  addMessage(`${user} left.`);
-});
-
-socket.on("new_message", (msg) => {
-  addMessage(msg);
-});
-
-socket.on("room_change", (rooms) => {
-  const ul = welcome.querySelector("ul");
-
-  if (rooms.length === 0) {
-    ul.innerHTML = "";
-    return;
-  }
-  rooms.forEach((room) => {
-    const li = document.createElement("li");
-    li.innerText = room;
-    ul.append(li);
-  });
-});
+/**
+ * RTC Code
+ */
+function makeConnection() {
+  gPeerConnection = new RTCPeerConnection();
+  mediaStream
+    .getTracks()
+    .forEach((track) => gPeerConnection.addTrack(track, mediaStream));
+}
