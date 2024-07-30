@@ -1,146 +1,160 @@
 const socket = io();
 
-const myFace = document.getElementById("face");
-const btnMute = document.getElementById("mute");
-const btnCamera = document.getElementById("camera");
-const selectCamera = document.getElementById("cameras");
+const divJoin = document.getElementById("join");
+const formJoin = divJoin.querySelector("form");
+const divStream = document.getElementById("stream");
+const localVideo = document.getElementById("local-video");
 
+const btnMuteOnOff = document.getElementById("mute");
+const btnCameraOnOff = document.getElementById("camera");
+const selAvailCameras = document.getElementById("cameras");
+
+divJoin.hidden = false;
+divStream.hidden = true;
+
+/** @type {MediaStream} */
 let mediaStream;
-let mute = false;
+let muteOn = false;
 let cameraOn = true;
 
-function getConnectionDevices(devices, type) {
-  return devices.filter((device) => device.kind === type);
+async function startMedia() {
+  divJoin.hidden = true;
+  divStream.hidden = false;
+  openMediaDevices();
 }
-
-async function getCameras() {
-  try {
-    const devices = await navigator.mediaDevices?.enumerateDevices();
-    const cameras = getConnectionDevices(devices, "videoinput");
-    const currentCamera = mediaStream.getVideoTracks()[0];
-    cameras.forEach((camera) => {
-      const option = document.createElement("option");
-      option.value = camera.deviceId;
-      option.innerText = camera.label;
-      if (currentCamera.label === camera.label) {
-        option.selected = true;
-      }
-      selectCamera.appendChild(option);
-    });
-  } catch (error) {
-    console.log(error);
-  }
-}
-
-async function getMedia(deviceId) {
-  const initConstraints = {
-    autio: true,
-    video: { facingMode: "user" },
-  };
-  const deviceIdConstraints = {
-    autio: true,
-    video: { deviceId: { exact: deviceId } },
-  };
-
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia(
-      deviceId ? deviceIdConstraints : initConstraints
-    );
-    myFace.srcObject = mediaStream;
-    if (!deviceId) {
-      getCameras();
-    }
-  } catch (error) {
-    console.log(error);
-  }
-}
-
-function handleMuteClick() {
-  mediaStream
-    .getAudioTracks()
-    .forEach((track) => (track.enabled = !track.enabled));
-  if (mute) {
-    btnMute.innerText = "Mute";
-    mute = false;
-  } else {
-    btnMute.innerText = "UnMute";
-    mute = true;
-  }
-}
-
-function handleCameraClick() {
-  mediaStream
-    .getVideoTracks()
-    .forEach((track) => (track.enabled = !track.enabled));
-  if (cameraOn) {
-    btnCamera.innerText = "Turn on Camera";
-    cameraOn = false;
-  } else {
-    btnCamera.innerText = "Turn Off Camera";
-    cameraOn = true;
-  }
-}
-
-async function handleCameraChange(event) {
-  await getMedia(event.target.value);
-}
-
-btnMute.addEventListener("click", handleMuteClick);
-btnCamera.addEventListener("click", handleCameraClick);
-selectCamera.addEventListener("change", handleCameraChange);
 
 /**
- * Enter room
+ * Form submit 이벤트 핸들러 함수
+ * @param e event handler
+ *
+ * @returns void
  */
-const divWelcome = document.getElementById("welcome");
-const formWelcome = divWelcome.querySelector("form");
-const divCall = document.getElementById("call");
-
-divCall.hidden = true;
-
-async function startMedia() {
-  divWelcome.hidden = true;
-  divCall.hidden = false;
-  await getMedia();
-  makeConnection();
-}
-
-function handleWelcomeSubmit(event) {
-  event.preventDefault();
-  const input = formWelcome.querySelector("input");
-
+function handleJoinSubmit(e) {
+  e.preventDefault();
+  const input = formJoin.querySelector("input");
   socket.emit("join_room", input.value, startMedia);
   gRoomName = input.value;
   input.value = "";
 }
 
-formWelcome.addEventListener("submit", handleWelcomeSubmit);
-
 /**
- * Process Socket
+ * button mute 이벤트 핸들러 함수
+ * @param void
+ *
+ * @returns void
  */
-let gRoomName;
-/** @type {RTCPeerConnection} */
-let gPeerConnection;
-
-socket.on("welcome", async () => {
-  console.log("welcome message received...");
-  const offer = await gPeerConnection.createOffer();
-  gPeerConnection.setLocalDescription(offer);
-  socket.emit("offer", offer, gRoomName);
-});
-
-socket.on("offer", (offer) => {
-  console.log("recv: ", offer);
-  gPeerConnection.setRemoteDescription(offer);
-});
-
-/**
- * RTC Code
- */
-function makeConnection() {
-  gPeerConnection = new RTCPeerConnection();
+function handleMuteClick() {
   mediaStream
-    .getTracks()
-    .forEach((track) => gPeerConnection.addTrack(track, mediaStream));
+    .getAudioTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
+  if (muteOn) {
+    muteOn = false;
+    btnMuteOnOff.innerText = "Mute";
+  } else {
+    muteOn = true;
+    btnMuteOnOff.innerText = "UnMute";
+  }
 }
+
+/**
+ * * button camera 이벤트 핸들러 함수
+ * @param void
+ *
+ * @returns void
+ */
+function handleCameraClick() {
+  mediaStream
+    .getVideoTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
+  if (cameraOn) {
+    cameraOn = false;
+    btnCameraOnOff.innerText = "Turn on Camera";
+  } else {
+    cameraOn = true;
+    btnCameraOnOff.innerText = "Turn off Camera";
+  }
+}
+
+/**
+ *
+ * @param e event handle
+ *
+ * @returns void 0
+ */
+function handleAvailCamerasClick(e) {
+  e.preventDefault();
+  const deviceId = selAvailCameras.value;
+  console.log("Change Camera : ", deviceId);
+  openMediaDevices(deviceId);
+}
+
+formJoin.addEventListener("submit", handleJoinSubmit);
+btnMuteOnOff.addEventListener("click", handleMuteClick);
+btnCameraOnOff.addEventListener("click", handleCameraClick);
+selAvailCameras.addEventListener("change", handleAvailCamerasClick);
+
+// Media
+/**
+ *
+ * @param string deviceId
+ */
+async function openMediaDevices(deviceId) {
+  const initConstraints = { autio: true, video: true };
+  const deviceIdConstraints = {
+    autio: true,
+    video: { deviceId: { exact: deviceId } },
+  };
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia(
+      deviceId ? deviceIdConstraints : initConstraints
+    );
+    localVideo.srcObject = mediaStream;
+    getAvailableCameras();
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+/**
+ * device에서 arg 타입의 MidiaDeviceInfo Array 정보를 획득
+ *
+ * @param string mediatrack의 type
+ *
+ * @returns Array<Object>
+ * */
+async function getConnectedDevices(type) {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return devices.filter((device) => device.kind === type);
+}
+
+/**
+ * 'videoinput' 종류인 device 정보를 획득. select box에 넣음
+ * @param void
+ *
+ * @returns void
+ */
+async function getAvailableCameras() {
+  const videoCameras = await getConnectedDevices("videoinput");
+  const currentCamera = mediaStream.getVideoTracks()[0];
+
+  selAvailCameras.innerHTML = "";
+
+  videoCameras.forEach((camera) => {
+    const option = document.createElement("option");
+    option.value = camera.deviceId;
+    option.innerText = camera.label;
+    if (currentCamera.label === camera.label) {
+      option.selected = true;
+    }
+    selAvailCameras.appendChild(option);
+  });
+}
+
+navigator.mediaDevices.addEventListener("devicechange", (e) => {
+  getAvailableCameras();
+});
+
+// Socket 처리
+socket.on("welcome", () => {
+  console.log("received welcome ...");
+});
