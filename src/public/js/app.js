@@ -12,15 +12,15 @@ const selAvailCameras = document.getElementById("cameras");
 divJoin.hidden = false;
 divStream.hidden = true;
 
-/** @type {MediaStream} */
-let mediaStream;
+let gRoomName;
 let muteOn = false;
 let cameraOn = true;
 
-async function startMedia() {
+async function initMedia() {
   divJoin.hidden = true;
   divStream.hidden = false;
-  openMediaDevices();
+  await openMediaDevices();
+  makePeerConnection();
 }
 
 /**
@@ -29,11 +29,12 @@ async function startMedia() {
  *
  * @returns void
  */
-function handleJoinSubmit(e) {
+async function handleJoinSubmit(e) {
   e.preventDefault();
   const input = formJoin.querySelector("input");
-  socket.emit("join_room", input.value, startMedia);
   gRoomName = input.value;
+  await initMedia();
+  socket.emit("join_room", input.value);
   input.value = "";
 }
 
@@ -68,10 +69,10 @@ function handleCameraClick() {
     .forEach((track) => (track.enabled = !track.enabled));
   if (cameraOn) {
     cameraOn = false;
-    btnCameraOnOff.innerText = "Turn on Camera";
+    btnCameraOnOff.innerText = "Turn Camera On";
   } else {
     cameraOn = true;
-    btnCameraOnOff.innerText = "Turn off Camera";
+    btnCameraOnOff.innerText = "Turn Camera Off";
   }
 }
 
@@ -81,7 +82,7 @@ function handleCameraClick() {
  *
  * @returns void 0
  */
-function handleAvailCamerasClick(e) {
+function handleChangeCamera(e) {
   e.preventDefault();
   const deviceId = selAvailCameras.value;
   console.log("Change Camera : ", deviceId);
@@ -91,15 +92,20 @@ function handleAvailCamerasClick(e) {
 formJoin.addEventListener("submit", handleJoinSubmit);
 btnMuteOnOff.addEventListener("click", handleMuteClick);
 btnCameraOnOff.addEventListener("click", handleCameraClick);
-selAvailCameras.addEventListener("change", handleAvailCamerasClick);
+selAvailCameras.addEventListener("change", handleChangeCamera);
 
 // Media
+/** @type {MediaStream} */
+let mediaStream;
+/** @type {RTCPeerConnection} */
+let gPeerConnection;
+
 /**
  *
  * @param string deviceId
  */
 async function openMediaDevices(deviceId) {
-  const initConstraints = { autio: true, video: true };
+  const initConstraints = { autio: true, video: { facingMode: "user" } };
   const deviceIdConstraints = {
     autio: true,
     video: { deviceId: { exact: deviceId } },
@@ -120,7 +126,7 @@ async function openMediaDevices(deviceId) {
  *
  * @param string mediatrack의 type
  *
- * @returns Array<Object>
+ * @returns MediaDeviceInfo[]
  * */
 async function getConnectedDevices(type) {
   const devices = await navigator.mediaDevices.enumerateDevices();
@@ -150,11 +156,47 @@ async function getAvailableCameras() {
   });
 }
 
+/**
+ * 원격 피어에 연결
+ * @param void
+ *
+ * @returns void
+ */
+function makePeerConnection() {
+  gPeerConnection = new RTCPeerConnection();
+  mediaStream
+    .getTracks()
+    .forEach((track) => gPeerConnection.addTrack(track, mediaStream));
+}
+
 navigator.mediaDevices.addEventListener("devicechange", (e) => {
   getAvailableCameras();
 });
 
 // Socket 처리
-socket.on("welcome", () => {
-  console.log("received welcome ...");
+// Peer A
+socket.on("welcome", async () => {
+  console.log("Someone joined room...");
+  const offer = await gPeerConnection.createOffer();
+  gPeerConnection.setLocalDescription(offer);
+  console.log("Sent offer : ", offer);
+  // Send Peer B
+  socket.emit("offer", offer, gRoomName);
+});
+
+// Peer B
+socket.on("offer", async (offer) => {
+  console.log("Received offer...");
+  // Peer A로부터 받은 정보를 Remote정보로 설정
+  gPeerConnection.setRemoteDescription(offer);
+  const answer = await gPeerConnection.createAnswer();
+  console.log(answer);
+  gPeerConnection.setLocalDescription(answer);
+  socket.emit("answer", answer, gRoomName);
+});
+
+// Peer A
+socket.on("answer", async (answer) => {
+  console.log("Received answer...");
+  gPeerConnection.setRemoteDescription(answer);
 });

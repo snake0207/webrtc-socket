@@ -15,9 +15,9 @@ html(lang="en")
         button Enter room
     div#stream
         video#local-video(autoplay, playsinline, width="400", height="400")
-        div(style="display: flex; flex: 1 1 0")
+        div
           button#mute Mute
-          button#camera(style="margin-left: 10px") Turn off Camera
-        select#cameras
+          button#camera(style="margin-left: 10px") Turn Camera Off
+          select#cameras
   script(src="/socket.io/socket.io.js")
   script(src="/public/js/app.js")
