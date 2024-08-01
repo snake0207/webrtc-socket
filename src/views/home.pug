@@ -9,15 +9,16 @@ html(lang="en")
   header 
     h1 Welcome webRTC
   main
-    div#welcome
-      form#room
+    div#join
+      form
         input(type="text", required, placeholder="Enter room")
         button Enter room
-    div#call
-      div#myStream
-        video#face(autoplay, playsinline, width="400", height="400")
-        button#mute Mute
-        button#camera Turn off Camera
-        select#cameras
+    div#local
+        video#local-video(autoplay, playsinline, width="400", height="400")
+        div
+          button#mute Mute
+          button#camera(style="margin-left: 10px") Turn Camera Off
+          select#cameras
+        video#peer-video(autoplay, playsinline, width="400", height="400")
   script(src="/socket.io/socket.io.js")
   script(src="/public/js/app.js")
