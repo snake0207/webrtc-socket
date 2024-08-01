@@ -83,11 +83,18 @@ function handleCameraClick() {
  *
  * @returns void 0
  */
-function handleChangeCamera(e) {
+async function handleChangeCamera(e) {
   e.preventDefault();
   const deviceId = selAvailCameras.value;
   console.log("Change Camera : ", deviceId);
-  openMediaDevices(deviceId);
+  await openMediaDevices(deviceId);
+
+  if (gPeerConnection) {
+    const videoSender = gPeerConnection
+      .getSenders()
+      .find((sender) => sender.track.kind === "video");
+    videoSender.replaceTrack(mediaStream.getVideoTracks()[0]);
+  }
 }
 
 formJoin.addEventListener("submit", handleJoinSubmit);
@@ -185,7 +192,6 @@ function handleIce(data) {
 
 function handleAddTrack(data) {
   console.log("Received track");
-  console.log(data);
   console.log("Peer stream : ", data.streams);
   console.log("Local stream : ", mediaStream);
   const peerStream = document.getElementById("peer-video");
