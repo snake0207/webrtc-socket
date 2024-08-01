@@ -19,6 +19,7 @@
   "dependencies": {
     "@socket.io/admin-ui": "^0.5.1",
     "express": "^4.19.2",
+    "next": "^14.2.5",
     "pug": "^3.0.3",
     "socket.io": "^4.7.5",
     "ws": "^8.18.0"
