@@ -2,15 +2,16 @@ const socket = io();
 
 const divJoin = document.getElementById("join");
 const formJoin = divJoin.querySelector("form");
-const divStream = document.getElementById("stream");
+const divLocal = document.getElementById("local");
 const localVideo = document.getElementById("local-video");
+const peerVideo = document.getElementById("peer-video");
 
 const btnMuteOnOff = document.getElementById("mute");
 const btnCameraOnOff = document.getElementById("camera");
 const selAvailCameras = document.getElementById("cameras");
 
 divJoin.hidden = false;
-divStream.hidden = true;
+divLocal.hidden = true;
 
 let gRoomName;
 let muteOn = false;
@@ -18,7 +19,7 @@ let cameraOn = true;
 
 async function initMedia() {
   divJoin.hidden = true;
-  divStream.hidden = false;
+  divLocal.hidden = false;
   await openMediaDevices();
   makePeerConnection();
 }
@@ -97,6 +98,7 @@ selAvailCameras.addEventListener("change", handleChangeCamera);
 // Media
 /** @type {MediaStream} */
 let mediaStream;
+let peerStream;
 /** @type {RTCPeerConnection} */
 let gPeerConnection;
 
@@ -164,6 +166,8 @@ async function getAvailableCameras() {
  */
 function makePeerConnection() {
   gPeerConnection = new RTCPeerConnection();
+  gPeerConnection.addEventListener("icecandidate", handleIce);
+  gPeerConnection.addEventListener("track", handleAddTrack);
   mediaStream
     .getTracks()
     .forEach((track) => gPeerConnection.addTrack(track, mediaStream));
@@ -173,30 +177,49 @@ navigator.mediaDevices.addEventListener("devicechange", (e) => {
   getAvailableCameras();
 });
 
+/** */
+function handleIce(data) {
+  console.log("Fire icecandidate");
+  socket.emit("ice", data.candidate, gRoomName);
+}
+
+function handleAddTrack(data) {
+  console.log("Received track");
+  console.log(data);
+  console.log("Peer stream : ", data.streams);
+  console.log("Local stream : ", mediaStream);
+  const peerStream = document.getElementById("peer-video");
+  peerStream.srcObject = data.streams[0];
+}
+
 // Socket 처리
 // Peer A
 socket.on("welcome", async () => {
-  console.log("Someone joined room...");
+  console.log("Someone joined room");
   const offer = await gPeerConnection.createOffer();
   gPeerConnection.setLocalDescription(offer);
-  console.log("Sent offer : ", offer);
+  console.log("Sent offer");
   // Send Peer B
   socket.emit("offer", offer, gRoomName);
 });
 
 // Peer B
 socket.on("offer", async (offer) => {
-  console.log("Received offer...");
+  console.log("Received offer");
   // Peer A로부터 받은 정보를 Remote정보로 설정
   gPeerConnection.setRemoteDescription(offer);
   const answer = await gPeerConnection.createAnswer();
-  console.log(answer);
   gPeerConnection.setLocalDescription(answer);
   socket.emit("answer", answer, gRoomName);
 });
 
 // Peer A
 socket.on("answer", async (answer) => {
-  console.log("Received answer...");
+  console.log("Received answer");
   gPeerConnection.setRemoteDescription(answer);
+});
+
+socket.on("ice", (candidate) => {
+  console.log("Received candidate");
+  gPeerConnection.addIceCandidate(candidate);
 });
