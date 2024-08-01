@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "author": "acrofuture",
   "scripts": {
-    "dev": "nodemon --watch"
+    "dev": "nodemon --watch",
+    "build": "next build",
+    "deploy": "shx touch out/.nojekyll && gh-pages -d out --dotfiles"
   },
   "license": "MIT",
   "description": "WebRTC & WebSockets",
