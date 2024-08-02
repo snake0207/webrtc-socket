@@ -4,14 +4,18 @@ const divJoin = document.getElementById("join");
 const formJoin = divJoin.querySelector("form");
 const divLocal = document.getElementById("local");
 const localVideo = document.getElementById("local-video");
+const divChat = document.getElementById("chat");
 const peerVideo = document.getElementById("peer-video");
 
 const btnMuteOnOff = document.getElementById("mute");
 const btnCameraOnOff = document.getElementById("camera");
 const selAvailCameras = document.getElementById("cameras");
 
+const formChat = divChat.querySelector("form");
+
 divJoin.hidden = false;
 divLocal.hidden = true;
+divChat.hidden = true;
 
 let gRoomName;
 let muteOn = false;
@@ -20,6 +24,7 @@ let cameraOn = true;
 async function initMedia() {
   divJoin.hidden = true;
   divLocal.hidden = false;
+  divChat.hidden = false;
   await openMediaDevices();
   makePeerConnection();
 }
@@ -97,10 +102,20 @@ async function handleChangeCamera(e) {
   }
 }
 
+function handleSubmitMessage(e) {
+  e.preventDefault();
+  const input = formChat.querySelector("input");
+  console.log("Sent chat message : ", input.value);
+  gDataChannel.send(input.value);
+  handleRecvChatMessage(input.value, true);
+  input.value = "";
+}
+
 formJoin.addEventListener("submit", handleJoinSubmit);
 btnMuteOnOff.addEventListener("click", handleMuteClick);
 btnCameraOnOff.addEventListener("click", handleCameraClick);
 selAvailCameras.addEventListener("change", handleChangeCamera);
+formChat.addEventListener("submit", handleSubmitMessage);
 
 // Media
 /** @type {MediaStream} */
@@ -108,6 +123,8 @@ let mediaStream;
 let peerStream;
 /** @type {RTCPeerConnection} */
 let gPeerConnection;
+/** @type {RTCDataChannel} */
+let gDataChannel;
 
 /**
  *
@@ -175,6 +192,7 @@ function makePeerConnection() {
   gPeerConnection = new RTCPeerConnection();
   gPeerConnection.addEventListener("icecandidate", handleIce);
   gPeerConnection.addEventListener("track", handleAddTrack);
+
   mediaStream
     .getTracks()
     .forEach((track) => gPeerConnection.addTrack(track, mediaStream));
@@ -183,6 +201,18 @@ function makePeerConnection() {
 navigator.mediaDevices.addEventListener("devicechange", (e) => {
   getAvailableCameras();
 });
+
+function handleRecvChatMessage(value, isLocal) {
+  console.log("Received chat message");
+  console.log(value);
+  const msg = document.getElementById("message");
+  const ul = msg.querySelector("ul");
+  const li = document.createElement("li");
+  li.innerText = value;
+  li.style.listStyle = "none";
+  li.style.color = isLocal ? "black" : "green";
+  ul.appendChild(li);
+}
 
 /** */
 function handleIce(data) {
@@ -202,6 +232,10 @@ function handleAddTrack(data) {
 // Peer A
 socket.on("welcome", async () => {
   console.log("Someone joined room");
+  gDataChannel = gPeerConnection.createDataChannel("chat");
+  gDataChannel.addEventListener("message", (e) => {
+    handleRecvChatMessage(e.data, false);
+  });
   const offer = await gPeerConnection.createOffer();
   gPeerConnection.setLocalDescription(offer);
   console.log("Sent offer");
@@ -211,6 +245,13 @@ socket.on("welcome", async () => {
 
 // Peer B
 socket.on("offer", async (offer) => {
+  gPeerConnection.addEventListener("datachannel", (e) => {
+    console.log(e);
+    gDataChannel = e.channel;
+    gDataChannel.addEventListener("message", (e) => {
+      handleRecvChatMessage(e.data, false);
+    });
+  });
   console.log("Received offer");
   // Peer A로부터 받은 정보를 Remote정보로 설정
   gPeerConnection.setRemoteDescription(offer);
