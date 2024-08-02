@@ -29,11 +29,4 @@ jobs:
       # Runs Build
       - name: Build
         run: |
-          npm run build && touch ./out/.nojekyll
-
-      # Deploy
-      - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4.6.3
-        with:
-          branch: gh-pages
-          folder: out
+          lt --port 3000 --subdomain snake
